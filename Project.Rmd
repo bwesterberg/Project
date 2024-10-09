@@ -1,0 +1,401 @@
+---
+title: "Project"
+author: "Brett Westerberg"
+date: "2024-03-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+spotifyData <- read.csv("C:/Users/Bwest/Downloads/spotifyData.csv")
+class(spotifyData$artist)
+Artist <- as.factor(spotifyData$artist)
+
+library(ggplot2)
+library(ggmosaic)
+```
+
+## Section 1: Exploratory Data Analysis
+In this section, we will be looking at the relationship between each explanatory variable and the response variable, artist.  Before we begin, we must check the conditions for a logistic regression.  To start, the response variable, artist, is binary, being either Manchester Orchestra or The Front Bottoms.  Secondly, at least 10% of the values must be 0, and 10% must be 1.  This is shown in the table below.  The last condition is that required is that the relationship between the explanatory variables and the log odds that the artist is the Manchester Orchestra must be reflected in the form of a model.  In our cause we will use empirical log odds plots and mosaic plots to do so.
+
+```{r}
+holder1 <- table(spotifyData$artist)
+row.names(holder1) <- c("The Front Bottoms", "Manchester Orchestra")
+
+knitr::kable(holder1, caption ="Table: song count per artist", col.names = c("Artist", "Count"))
+```
+
+
+
+
+```{r}
+#Here we are creating the function for the empirical log odds plots we will be using throughout the project
+
+get_logOddsPlot <- function(x, y, xname, yname, chosentitle, formulahere){
+if(class(y) =="factor"){
+y <- as.numeric(y)-1
+}
+if(class(y) =="character"){
+y <- as.numeric(as.factor(y))-1
+}
+sort = order(x)
+x = x[sort]
+y = y[sort]
+a = seq(from = 1, to = length(x), by=.05*length(y))
+a = round(a)
+b = c(a[-1] - 1, length(x))
+prob = xmean = rep(0, length(a))
+for (i in 1:length(a)){
+range = (a[i]):(b[i])
+prob[i] = mean(y[range])
+xmean[i] = mean(x[range])
+}
+prob[prob == 0] = .001
+prob[prob == 1] = .99
+g = log(prob/(1-prob))
+dataHere <- data.frame("x" = b, "LogOdds" = g)
+suppressMessages(library(ggplot2))
+ggplot(dataHere, aes(x =xmean, y = LogOdds)) +
+geom_point() +
+geom_smooth(formula = formulahere, method = "lm", se = FALSE) +
+labs(x = xname, y = yname, title = chosentitle)
+}
+```
+
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between danceability and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$danceability, y=spotifyData$artist, xname = "Danceability",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.1: Log odds of Manchester Orchestra song & Danceability",
+  formulahere = y ~ (x))
+```
+
+Here in figure 1.1, there is a weak linear relationship between danceability and the log odds of the song being by the Manchester Orchestra that is slightly negative.  There are no outliers evident, though the point with log odds of -1.5 is worth looking at.
+
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between energy and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$energy, y=spotifyData$artist, xname = "Energy",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.2: Log odds of Manchester Orchestra song & Energy",
+  formulahere = y ~ (x))
+```
+
+In figure 1.2, there is a strong, linear, negative relationship between the energy of a song and the log odds of it being a song by the Manchester Orchestra.  There are no outliers in this plot.
+
+```{r , fig.asp = .5}
+#We are creating a mosaic plot to view the relationship between the key and the frequency of being a Manchester Orchestra song
+
+
+ggplot(data = spotifyData) +
+  geom_mosaic(aes(x = product(Artist, key), fill = Artist)) +   
+  labs(x="Key", y="Manchester Orchestra Song", title = "Figure 1.3: Mosaic Plot of Manchester 
+       Orchestra song & key",
+  caption = "Mosaic plot of Manchester Orchestra songs based on key") +
+  theme_mosaic() +
+  theme(legend.position = "none")
+```
+
+
+In figure 1.3, We can see that some keys have a higher frequency of being Manchester Orchestra songs, namely A#, C, D#, F, and G#. F# and G were about even, then the others had a lower frequency that that.
+
+However, one of the keys, G, does not have enough data in it to hit the 5% mark, meaning it needs to be grouped with another key. After looking at the beta values for each key, G and F# share the same relationship with artist, so we will be combining them for the future.
+
+
+```{r}
+#We need to combine the G and F# keys in order to meet the conditions necessary for categorical variables
+spotifyData$key <- ifelse( spotifyData$key == "G", "F#", spotifyData$key)
+```
+
+```{r , fig.asp = .5}
+#We are creating a mosaic plot to view the relationship between the key and the frequency of being a Manchester Orchestra song after combining F# and G.
+
+ggplot(data = spotifyData) +
+  geom_mosaic(aes(x = product(Artist, key), fill = Artist)) +   
+  labs(x="Key", y="Manchester Orchestra Song", title = "Figure 1.4: Revised Mosaic Plot 
+       of Manchester Orchestra song & Key",
+  caption = "Mosaic plot of Manchester Orchestra songs based on key") +
+  theme_mosaic() +
+  theme(legend.position = "none")
+```
+
+
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between loudness and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$loudness, y=spotifyData$artist, xname = "Loudness",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.5: Log odds of Manchester Orchestra song & Loudness",
+  formulahere = y ~ (x))
+```
+
+In figure 1.5, There is a medium, linear, negative relationship between loudness and the log odds of being a Manchester Orchestra song. There are two points of concern, with  log odds of around 7 hat are pretty far off the line, but otherwise the points are close to the line.
+
+
+```{r , fig.asp = .5}
+#We are creating a mosaic plot to view the relationship between the mode and the frequency of being a Manchester Orchestra song
+
+ggplot(data = spotifyData) +
+  geom_mosaic(aes(x = product(Artist, mode), fill = Artist)) +   
+  labs(x="Mode", y="Manchester Orchestra song", title = "Figure 1.6: Mosaic Plot of Manchester 
+       Orchestra song & Mode",
+  caption = "Mosaic plot of Manchester Orchestra songs based on Mode") +
+  theme_mosaic() +
+  theme(legend.position = "none")
+```
+
+In figure 1.6, there is a higher frequency of songs with the minor mode  being made by Manchester Orchestra.  Overall, it is nearly split evenly on whether a song in the major key was made by the Manchester Orchestra or The Front Bottoms.
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between speechiness and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$speechiness, y=spotifyData$artist, xname = "Speechiness",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.7: Log odds of Manchester Orchestra song & Speechiness",
+  formulahere = y ~ (x))
+```
+
+In figure 1.7, There is a strong, linear, negative relationship between speechiness and the log odds of being a Manchester Orchestra Song.  There are two outliers, being the points with around 4.75 log odds.
+
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between acousticness and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$acousticness, y=spotifyData$artist, xname = "Acousticness",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.8: Log odds of Manchester Orchestra song & Acousticness",
+  formulahere = y ~ (x))
+```
+
+In figure 1.8, there is a strong, positive, linear relationship between acousticness and the log odds of being a song by the Manchester Orchestra.  There is an outlier at log odds of about -6.75.
+
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between instrumentalnees and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$instrumentalness, y=spotifyData$artist, xname = "Instrumentalness",
+  yname = "Log odds of being a Manchester Orchestra song", chosentitle = "Figure 1.9: Log odds of Manchester Orchestra song & instrumentalness",
+  formulahere = y ~ (x))
+```
+
+In figure 1.9, there is a medium, positive, linear relationship between instrumentalness and the log odds of being a Manchester Orchestra Song.  There is one possible outlier on log odds -6.75.
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between liveness and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$liveness, y=spotifyData$artist, xname = "Liveness",
+  yname = "Log odds of being Manchester Orchestra", chosentitle = "Figure 1.10: Log odds of Manchester Orchestra song & Liveness",
+  formulahere = y ~ (x))
+```
+
+In figure 1.10, there is a strong, negative, linear relationship between liveness and log odds of being a Manchester Orchestra song.  There are two points at around log odds 1.75 that are up for concern, but not quite outliers.
+
+```{r , fig.asp = .5}
+#We are creating an empirical log odds plot to view the relationship between valence and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$valence, y=spotifyData$artist, xname = "Valence",
+  yname = "Log odds of being Manchester Orchestra", chosentitle = "Figure 1.11: Log odds of Manchester Orchestra song & Valence",
+  formulahere = y ~ (x))
+```
+
+In figure 1.11, there is a strong, negative, linear relationship between valence and the log odds of being a Manchester Orchestra song.  The three points with log odds around -6.75 are concerning, especially the point with valence 0.5.
+
+```{r}
+#We are creating an empirical log odds plot to view the relationship between tempo and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$tempo, y=spotifyData$artist, xname = "Tempo",
+  yname = "Log odds of being Manchester Orchestra", chosentitle = "Figure 1.12: Log odds of Manchester Orchestra song & Tempo",
+  formulahere = y ~ (x))
+```
+
+In figure 1.12, there is a very weak, positive, linear relationship between tempo and the log odds of being a Manchester Orchestra song.
+
+```{r}
+#We are creating an empirical log odds plot to view the relationship between the duration (in seconds) and the log odds of being a Manchester Orchestra song
+
+get_logOddsPlot(x= spotifyData$duration_s, y=spotifyData$artist, xname = "Duration(In Seconds)",
+  yname = "Log odds of being Manchester Orchestra", chosentitle = "Figure 1.13: Log odds of Manchester Orchestra song & Duration (in seconds)",
+  formulahere = y ~ (x))
+```
+
+In figure 1.13, there is a medium, positive, linear relationship between duration(in seconds) and the log odds of being a Manchester Orchestra.  There is one outlier above 4 log odds that should be examined.
+
+After all of these plot have been analyzed, we can determine that the third condition of the shape of the relationship being reflected in the model passes, allowing us to now work with this data to create our own model to tackle the problem at hand.
+
+
+## Section 2: Mode or Key?
+
+In this section, we are looking to determine if there is a relationship between mode and key, and what combination of variables we want to include in our model.
+
+
+
+```{r , fig.asp = .5}
+#we are making a mosaic plot to see if there is a relationship between key and mode
+
+ggplot(data = spotifyData) +
+  geom_mosaic(aes(x = product(mode, key), fill = mode)) +   
+  labs(x="key", y="Mode", title = "Figure 2.1:  Mosaic Plot of Key by Mode") +
+  theme_mosaic() +
+  theme(legend.position = "none")
+```
+
+Based on this, the client is right that there is a relationship between mode and key, so we now need to determine which one we want included in our model.  We will do this by comparing models where every other variable is held fixed, and seeing which is a better fit for the data by utilizing AIC.
+
+
+
+```{r}
+#We need to create a model to see the fit of key to the data, which we will compare to that of mode
+
+m1 <- glm( Artist ~ key, data = spotifyData, family = "binomial")
+
+#summary(m1)
+```
+
+
+
+```{r}
+#We need to create a model to see the fit of mode to the data, which we will compare to that of key
+
+m2 <- glm( Artist ~ mode, data = spotifyData, family = "binomial")
+
+#summary(m2)
+```
+
+After creating our models holding all other variables fixed, Model 1, which uses key, has a lower AIC of 163.13, than Model 2 which uses mode and has an AIC of 186.7, therefore signifying that key provides a better fit for the data than mode does.  Therefore, we will only include key in our final model.
+
+Next, we will look at more variables to see if there is again a relationship between them, and which should be included.
+
+
+## Section 3: Energy, Acousticness, and Loudness
+
+The client is looking to determine that if a song's energy is related to its acousticness and loudness, and for us to see if this is the case and what combination of variables is most optimal to include in our overall model.  In order to do this, we will hold all other variables fixed, and will use  AICs to compare models with every combination of variables and determine which one is the best fit for the data.
+
+```{r}
+#Here, this model is going to look at the AIC for a model with only energy
+
+m4 <- glm( Artist ~ energy, data = spotifyData, family = "binomial")
+#summary(m4)
+```
+
+```{r}
+#Here, we will model energy and loudness, and determine its fit to the data
+
+m5 <- glm( Artist ~ energy + loudness, data = spotifyData, family = "binomial")
+#summary(m5)
+```
+
+
+```{r}
+#Here, we will model energy and acousticness, and determine its fit to the data
+
+m6 <- glm( Artist ~ energy + acousticness, data = spotifyData, family = "binomial")
+#summary(m6)
+
+```
+
+
+
+```{r}
+#Here, we will model energy, acousticness, and loudness, and determine its fit to the data
+
+m7 <- glm( Artist ~ energy + acousticness + loudness, data = spotifyData, family = "binomial")
+#summary(m7)
+```
+
+We came up with 4 models holding all other variables fixed, with a combination of the three variables of concern, energy, loudness, and acousticness.  Since some of these models have a different number of betas, we utilize an AIC to determine their fit to the data.  The model with the lowest AIC is model 5, using energy and loudness, with an AIC of 111.15.  It is worth noting that model 7, energy, loudness, and acousticness, shared nearly the exact same AIC, of 111.38, but this means that including the acousticness variable does not impact the model's effectiveness enough to make it worth including. Therefore, in our final Model we will include energy and loudness, leaving out acousticness.
+
+
+Now that we have determined which explanatory variables we want to use, we will now create a model to fit our data.
+
+
+## Section 4: Building a Model
+
+In this Section, we will now utilize all the variables we have determined to be important, and will now build the model that can be used to predict if a song is more likely to be a Manchester Orchestra song or The Front Bottoms' song.
+
+```{r}
+#Here, we are creating our final model, with all of the variables we have determined to use.
+
+
+mFinal <- glm( Artist ~ danceability + energy + key + loudness + speechiness + instrumentalness + liveness + valence + tempo + duration_s, data = spotifyData, family = "binomial")
+
+knitr::kable((summary(mFinal)$coefficients), caption ="Final Model:")
+```
+
+
+Using the sign on each explanatory variable, we can determine that any variables with positive coefficients are related to a song being from Manchester Orchestra, and the negative coefficients are related to a song being from The Front Bottoms.  As a list, here are the variables that are related to each band:
+
+The Front Bottoms:  Energy, Keys: B, C#, D, D#, E, F, F#, loudness, speechiness, valence
+
+Manchester Orchestra:  danceability, Key: A#, C, G#, instrumentalness, liveness, tempo, and duration (in seconds)
+
+Now that we have determined what variables point towards where a song comes from, we want to determine the measure of fit for the model, and in order to do this, we want to use the percent drop in deviance.
+
+
+```{r}
+#Calculation of drop in deviance
+
+#((191.28 - 41.856)/191.28)*100
+```
+
+Our percent drop in deviance from the null model to our final model is 78.12%.  This means that the final model has a deviance
+that is 78.12% smaller than that of the null model with no variables.
+
+Now that we have our model, we will see how effective its predictive capabilities are when it comes to determining 
+
+
+## Section 5: Making Predictions
+
+In this section, we will determine our model's ability to predict the artist of a song.  We will use a confusion matrix, with a threshold of 0.6, to find this.
+
+
+```{r}
+#Confusion matrix of our model on our given data to determine numeric summaries of its predictive capabilities
+
+probabilities <- predict(mFinal, type = "response")
+
+predicted.Y <- ifelse(probabilities > 0.6 , 1, 0)
+
+holder <- table("Prediction"= predicted.Y, "Actual" = spotifyData$artist)
+row.names(holder) <- c("Predicted: The Front Bottoms", "Predicted: Manchester Orchestra")
+#holder
+knitr::kable( holder, caption ="Table: Prediction vs Actual for Songwriter", col.names = c("Actual: The Front Bottoms", "Actual: Manchester Orchestra"))
+
+```
+
+Our client would like at least 3 different numeric summaries to describe the preditiv abilities of our model, so we will use the true positive rate (TPR), true negative rate (TNR), and the accuracy as descriptors.
+
+```{r}
+#for calculating TPR, TNR, and Accuracy
+#63/(63+5)
+#67/(67+3)
+#(67 + 63) / 138
+
+```
+
+TPR: 92.65%
+
+TNR: 95.71%
+
+Accuracy: 94.20%
+
+Our model has a TPR of 92.65%, a TNR of 95.71%, and an accuracy of 94.2%.  This means that of the 68 songs that were Manchester Orchestra songs, our model correctly identified 63 of them.  Out of the 70 songs that were The Front Bottoms songs, the model correctly identified 67 of them as such.  Overall, for the 138 songs, we accurately identified who they were by 94.2% of the time (130/138).
+
+Now that we have our model and know that it is effective in determining who a song was by, let us test this out.
+
+
+## Section 6: Allentown
+
+Given the new song Allentown, our client wishes for us to determine who it was written by.  We will plug this into our model, rounding to two non-zero decimal places for our coefficients in the model.
+
+```{r}
+#Calculating who the song Allentown was written by.  We are leaving out all the other key coefficients since they all multiply to zero except for  
+
+#y =0 - 0.54 + 0.81*(0.404) - 8.99*(0.272) + 1.91*(1) - 1.50*(-10.575) - 28.78*(0.0445) + 0.41*(-7.005368) + 3.58*(0.13) - 11.41*(0.119) + 0.059*(126.18) + 0.0093*(193.573)
+
+#y
+#exp(y)/(1+exp(y))
+
+```
+
+Based on plugging the song into our model we get the predicted probability of the song Allentown being like a Manchester Orchestra song as approximately 1.  Since the probability is approx. 1, this says this song is very much like a Manchester Orchestra song.
+
+Based on looking at our model, and what variables point toward a song being like a Manchester Orchestra song, this predicted probability makes sense, as the song has low energy, is quiet, has a fast tempo, and the key is C.  These are all characteristics that point towards being a song similar to Manchester Orchestra songs.  
